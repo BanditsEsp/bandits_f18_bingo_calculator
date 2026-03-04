@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F/A-18C — BINGO FUEL CALCULATOR</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --green: #00ff88;
+    --green-dim: #00cc66;
+    --green-glow: rgba(0,255,136,0.10);
+    --amber: #ffdd44;
+    --amber-dim: #ddaa22;
+    --white: #eceee4;
+    --white-dim: rgba(236,238,228,0.60);
+    --red: #ff3344;
+    --red-glow: rgba(255,51,68,0.22);
+    --bg: #020507;
+    --panel: #080d10;
+    --panel2: #0c1216;
+    --border: rgba(255,255,255,0.13);
+    --border-bright: rgba(0,255,136,0.55);
+    --text-dim: rgba(236,238,228,0.50);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(0,40,80,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(20,30,50,0.06) 0%, transparent 50%);
+  }
+
+  /* scanlines overlay */
+  body::before {
+    content:'';
+    position:fixed; inset:0; z-index:999; pointer-events:none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+  }
+
+  /* HEADER */
+  header {
+    text-align: center;
+    padding: 32px 0 24px;
+    position: relative;
+  }
+  .header-line {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(22px, 4vw, 38px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: var(--white);
+    text-shadow: 0 0 30px rgba(77,255,170,0.25), 0 0 60px rgba(77,255,170,0.1);
+  }
+  .header-sub {
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  .header-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+    margin-top: 20px;
+  }
+  .header-corner {
+    position:absolute; top:32px; font-size:10px; letter-spacing:2px; color: var(--text-dim);
+  }
+  .header-corner.left { left:0; }
+  .header-corner.right { right:0; }
+
+  /* GRID */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  .full-width { grid-column: 1/-1; }
+
+  /* PANELS */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 20px;
+    position: relative;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+  .panel::before {
+    content:'';
+    position:absolute; inset:0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 50%);
+    pointer-events:none;
+  }
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* INPUTS */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .field input, .field select {
+    width: 100%;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--border);
+    color: var(--white);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--green-dim);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+  .field select option {
+    background: #0a130d;
+  }
+  .field .unit {
+    display:inline-block;
+    font-size: 10px;
+    letter-spacing:2px;
+    color: var(--text-dim);
+    margin-left: 8px;
+  }
+
+  /* SLIDER */
+  .slider-row { display:flex; align-items:center; gap:10px; }
+  .slider-row input[type=range] {
+    flex:1; height:4px; padding:0;
+    background: linear-gradient(90deg, var(--green-dim) var(--pct,0%), rgba(0,255,136,0.15) var(--pct,0%));
+    border:none;
+    -webkit-appearance: none;
+    cursor:pointer;
+  }
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width:14px; height:14px;
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(77,255,170,0.5);
+    cursor:pointer;
+    border-radius:0;
+    clip-path: polygon(50% 0%,100% 100%,0% 100%);
+  }
+  .slider-val {
+    min-width: 56px; text-align:right; font-size:15px; color: var(--white);
+  }
+
+  /* STORES CHECKBOXES */
+  .stores-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 8px;
+  }
+  .store-item {
+    display:flex; align-items:center; gap:8px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,255,136,0.12);
+    padding: 8px 10px;
+    cursor:pointer;
+    transition: border-color 0.15s, background 0.15s;
+    user-select:none;
+  }
+  .store-item:hover { border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.03); }
+  .store-item.active { border-color: var(--green-dim); background: rgba(77,255,170,0.07); }
+  .store-item input[type=checkbox] { display:none; }
+  .store-check {
+    width:12px; height:12px; border:1px solid rgba(255,255,255,0.3); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:9px;
+  }
+  .store-item.active .store-check { background: var(--green); color: #000; }
+  .store-name { font-size:11px; letter-spacing:1px; flex:1; color: var(--white-dim); }
+  .store-item.active .store-name { color: var(--white); }
+  .store-di { font-size:10px; color: var(--amber-dim); }
+
+  /* FLAP/GEAR SELECT */
+  .toggle-group { display:flex; gap:8px; flex-wrap:wrap; }
+  .toggle-btn {
+    flex:1; min-width:90px; padding:9px 8px; text-align:center;
+    background: rgba(0,0,0,0.5); border:1px solid var(--border);
+    font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:2px;
+    color: var(--text-dim); cursor:pointer; transition:all 0.15s;
+  }
+  .toggle-btn.sel {
+    background: rgba(77,255,170,0.08); border-color: var(--green-dim);
+    color: var(--white); box-shadow: 0 0 10px var(--green-glow);
+  }
+
+  /* CALCULATE BTN */
+  .calc-btn {
+    width:100%; padding:16px;
+    background: transparent; border:2px solid var(--green-dim);
+    font-family:'Orbitron',monospace; font-size:13px; letter-spacing:6px;
+    color: var(--white); cursor:pointer;
+    position:relative; overflow:hidden;
+    transition: all 0.2s;
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+  }
+  .calc-btn:hover {
+    background: rgba(77,255,170,0.07);
+    box-shadow: 0 0 30px var(--green-glow), inset 0 0 20px var(--green-glow);
+    text-shadow: 0 0 12px rgba(77,255,170,0.4);
+  }
+  .calc-btn::after {
+    content:'';
+    position:absolute; top:-50%; left:-60%; width:40%; height:200%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.4s;
+  }
+  .calc-btn:hover::after { left:120%; }
+
+  /* RESULTS */
+  #results { display:none; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Two bingo panels side by side */
+  .bingo-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width:560px) { .bingo-pair { grid-template-columns: 1fr; } }
+
+  .result-hero {
+    background: var(--panel2);
+    border: 1px solid rgba(77,255,170,0.25);
+    padding: 22px 18px;
+    text-align:center;
+    position:relative;
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  }
+  .result-hero.hero-sl { border-color: rgba(255,204,68,0.3); }
+  .result-hero::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(77,255,170,0.06) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .result-hero.hero-sl::before {
+    background: radial-gradient(ellipse at 50% 0%, rgba(255,204,68,0.05) 0%, transparent 70%);
+  }
+  .result-badge {
+    display:inline-block; font-family:'Orbitron',monospace; font-size:8px; letter-spacing:3px;
+    padding:3px 10px; margin-bottom:10px;
+    border:1px solid rgba(77,255,170,0.4); color: var(--green); background: rgba(77,255,170,0.06);
+  }
+  .result-badge.badge-sl { border-color: rgba(255,204,68,0.4); color: var(--amber); background: rgba(255,204,68,0.05); }
+  .result-label {
+    font-family:'Orbitron',monospace; font-size:8px; letter-spacing:4px; color:var(--text-dim); margin-bottom:8px;
+  }
+  .result-bingo {
+    font-family:'Orbitron',monospace; font-size:clamp(32px,6vw,54px); font-weight:900;
+    color: var(--white); line-height:1; letter-spacing:2px;
+    text-shadow: 0 0 30px rgba(77,255,170,0.25);
+  }
+  .result-hero.hero-sl .result-bingo { text-shadow: 0 0 30px rgba(255,204,68,0.25); }
+  .result-unit {
+    font-family:'Orbitron',monospace; font-size:10px; letter-spacing:3px;
+    color: var(--text-dim); margin-top:5px;
+  }
+  .result-sub {
+    font-size:10px; letter-spacing:1px; color: var(--text-dim);
+    margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.07);
+    line-height:1.8;
+  }
+  .result-sub .sv { color: var(--white-dim); }
+
+  /* data cards */
+  .data-section-label {
+    font-family:'Orbitron',monospace; font-size:8px; letter-spacing:4px;
+    color: rgba(77,255,170,0.45); margin:14px 0 8px;
+    padding-bottom:5px; border-bottom:1px solid rgba(77,255,170,0.12);
+  }
+  .data-section-label.ds-sl { color: rgba(255,204,68,0.45); border-color: rgba(255,204,68,0.12); }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  @media (max-width:560px) { .result-grid { grid-template-columns: 1fr 1fr; } }
+
+  .result-card {
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 12px 10px; text-align:center;
+  }
+  .result-card.card-sl { border-color: rgba(255,204,68,0.18); }
+  .result-card .rc-label { font-size:8px; letter-spacing:2px; color: var(--text-dim); margin-bottom:6px; }
+  .result-card .rc-value { font-family:'Orbitron',monospace; font-size:20px; font-weight:700; color: var(--white); }
+  .result-card.card-sl .rc-value { color: var(--amber); }
+  .result-card .rc-unit { font-size:8px; letter-spacing:2px; color: var(--text-dim); margin-top:3px; }
+
+  /* WARNING */
+  .warning-box {
+    background: rgba(255,68,85,0.05); border: 1px solid rgba(255,68,85,0.38);
+    padding: 16px 20px; display:flex; gap:14px; align-items:flex-start;
+    animation: pulse-border 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { border-color: rgba(255,68,85,0.38); }
+    50% { border-color: rgba(255,68,85,0.7); box-shadow: 0 0 14px rgba(255,68,85,0.1); }
+  }
+  .warning-icon { font-size:22px; flex-shrink:0; margin-top:1px; }
+  .warning-title { font-family:'Orbitron',monospace; font-size:9px; letter-spacing:4px; color:var(--red); margin-bottom:8px; }
+  .warning-text { font-size:12px; letter-spacing:1px; color: rgba(255,150,158,0.85); line-height:1.7; }
+  .warning-total {
+    margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,68,85,0.22);
+    font-family:'Orbitron',monospace; font-size:12px; letter-spacing:3px; color:var(--red);
+  }
+
+  /* DI display */
+  .di-display {
+    background: rgba(0,0,0,0.45); border:1px solid var(--border);
+    padding:10px 14px; margin-top:10px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .di-label { font-size:10px; letter-spacing:3px; color: var(--text-dim); }
+  .di-value { font-family:'Orbitron',monospace; font-size:20px; color: var(--amber); }
+
+  /* config tags */
+  .config-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; justify-content:center; }
+  .config-tag {
+    font-size:10px; letter-spacing:2px; color: var(--text-dim);
+    background: rgba(0,0,0,0.4); border:1px solid var(--border); padding:4px 10px;
+  }
+  .config-tag.highlight { color: var(--white); border-color: rgba(255,255,255,0.2); }
+
+  /* notes */
+  .notes-section {
+    margin-top:14px; font-size:11px; letter-spacing:1px; line-height:1.8;
+    color: var(--text-dim); border-left:2px solid var(--border); padding-left:14px;
+  }
+  .notes-section li { list-style:none; margin-bottom:4px; }
+  .notes-section li::before { content:'▸ '; color: var(--green-dim); }
+
+  .section-divider { height:1px; background: linear-gradient(90deg, rgba(255,255,255,0.12), transparent); margin:12px 0 16px; }
+
+  .blink { animation: blink 1.2s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .status-bar {
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:9px; letter-spacing:3px; color: var(--text-dim);
+    padding:10px 0 0; border-top:1px solid var(--border); margin-top:24px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="header-corner left">A1-F18AC-NFM-200</div>
+    <div class="header-corner right">SEC XI · PART 4</div>
+    <div class="header-line">F/A-18C HORNET · MISSION PLANNING</div>
+    <h1>BINGO FUEL CALC</h1>
+    <div class="header-sub">F404-GE-400 · JP-5 · 6.8 LB/GAL</div>
+    <div class="header-divider"></div>
+  </header>
+
+  <!-- INPUTS -->
+  <div class="grid">
+
+    <!-- DISTANCIA Y PESO -->
+    <div class="panel">
+      <div class="panel-title">▸ PARÁMETROS DE MISIÓN</div>
+
+      <div class="field">
+        <label>DISTANCIA AL ALTERNATE / BASE (NM)</label>
+        <div class="slider-row">
+          <input type="range" id="dist_range" min="20" max="200" value="100" step="20" oninput="syncSlider('dist')">
+          <span class="slider-val" id="dist_val">100</span>
+          <span class="unit" style="font-size:10px;letter-spacing:2px;color:var(--text-dim)">NM</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>PESO CERO COMBUSTIBLE (ZFW)</label>
+        <div class="toggle-group" id="zfw_toggle">
+          <div class="toggle-btn" onclick="selToggle('zfw',26000,this)">26,000 LB</div>
+          <div class="toggle-btn sel" onclick="selToggle('zfw',30000,this)">30,000 LB</div>
+        </div>
+        <input type="hidden" id="zfw" value="30000">
+      </div>
+
+    </div>
+
+    <!-- CONFIGURACION -->
+    <div class="panel">
+      <div class="panel-title">▸ CONFIGURACIÓN DE VUELO</div>
+
+      <div class="field">
+        <label>TREN DE ATERRIZAJE</label>
+        <div class="toggle-group" id="gear_toggle">
+          <div class="toggle-btn sel" onclick="selToggle('gear','up',this)">GEAR UP</div>
+          <div class="toggle-btn" onclick="selToggle('gear','down',this)">GEAR DOWN</div>
+        </div>
+        <input type="hidden" id="gear" value="up">
+      </div>
+
+      <div class="field">
+        <label>FLAPS</label>
+        <div class="toggle-group" id="flaps_toggle">
+          <div class="toggle-btn sel" onclick="selToggle('flaps','auto',this)">FLAPS AUTO</div>
+          <div class="toggle-btn" onclick="selToggle('flaps','half',this)">HALF FLAPS</div>
+        </div>
+        <input type="hidden" id="flaps" value="auto">
+      </div>
+
+      <div class="field">
+        <label>MOTORES</label>
+        <div class="toggle-group" id="eng_toggle">
+          <div class="toggle-btn sel" onclick="selToggle('eng','two',this)">TWO ENG</div>
+          <div class="toggle-btn" onclick="selToggle('eng','one',this)">ONE ENG (EMER)</div>
+        </div>
+        <input type="hidden" id="eng" value="two">
+      </div>
+    </div>
+
+    <!-- STORES / DRAG INDEX -->
+    <div class="panel full-width">
+      <div class="panel-title">▸ CARGAS / STORES — DRAG INDEX</div>
+      <div class="stores-grid" id="stores_grid"></div>
+      <div class="di-display">
+        <span class="di-label">TOTAL DRAG INDEX</span>
+        <span class="di-value" id="di_total">0</span>
+      </div>
+      <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-top:8px;">
+        * Para configuraciones mixtas, suma los DI individuales de cada store. El cálculo usa el bloque más cercano (0/50/100/150/200/250/300).
+      </div>
+    </div>
+
+    <!-- CALCULATE -->
+    <div class="full-width">
+      <button class="calc-btn" onclick="calculate()">◈ CALCULAR BINGO FUEL ◈</button>
+    </div>
+
+  </div><!-- /grid -->
+
+  <!-- RESULTS -->
+  <div id="results" style="margin-top:20px;">
+    <div class="grid">
+
+      <!-- CONFIG TAGS -->
+      <div class="full-width" style="margin-bottom:4px;">
+        <div class="config-row" id="r_config_tags"></div>
+      </div>
+
+      <!-- DUAL BINGO HEROES -->
+      <div class="full-width">
+        <div class="bingo-pair">
+
+          <!-- HIGH ALTITUDE -->
+          <div class="result-hero">
+            <div class="result-badge">◈ GRAN ALTITUD</div>
+            <div class="result-label">BINGO FUEL — PERFIL ALTA COTA</div>
+            <div class="result-bingo" id="r_bingo_ha">---</div>
+            <div class="result-unit">LB · JP-5</div>
+            <div class="result-sub">
+              Alt crucero: <span class="sv" id="r_alt">---</span> ft &nbsp;·&nbsp;
+              M<span class="sv" id="r_mach">---</span><br>
+              Vel Crucero: <span class="sv" id="r_climb_speed">---</span> KCAS &nbsp;·&nbsp;
+              Descenso idle: <span class="sv" id="r_descent_nm">---</span> NM
+              <br>
+              El ascenso desde SL hasta altitud de crucero ya incluido en el resultado.
+            </div>
+          </div>
+
+          <!-- SEA LEVEL -->
+          <div class="result-hero hero-sl">
+            <div class="result-badge badge-sl">◈ NIVEL DEL MAR</div>
+            <div class="result-label">BINGO FUEL — PERFIL SL DIRECTO</div>
+            <div class="result-bingo" id="r_bingo_sl">---</div>
+            <div class="result-unit">LB · JP-5</div>
+            <div class="result-sub">
+              Vel crucero: <span class="sv" id="r_sl_cas">---</span> KCAS<br>
+              Tiempo estimado: <span class="sv" id="r_sl_time">---</span> min
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- NOTES + WARNING -->
+      <div class="panel full-width" style="padding-bottom:20px;">
+        <div class="panel-title">▸ NOTAS DE PERFIL</div>
+        <ul class="notes-section" id="r_notes"></ul>
+        <div class="section-divider" style="margin-top:14px;"></div>
+        <div class="warning-box">
+          <div class="warning-icon">⚠</div>
+          <div>
+            <div class="warning-title">◈ NO HAY RESERVA DE COMBUSTIBLE — AVISO CRÍTICO</div>
+            <div class="warning-text">
+              Para operaciones reales añade margen adicional por:
+            </div>
+            <div class="warning-text" style="margin-top:8px;">
+              ▸ <strong>Esperas ATC</strong> (holding): +fuel según tiempo estimado<br>
+              ▸ <strong>Intentos de aterrizaje frustrados</strong> (go-around): mín. +500lb para portaaviones y 800lb para pista por intento<br>
+              ▸ <strong>Emergencias / desvio a alternativo</strong>: planifica combustible propio para alternativo<br>
+              ▸ <strong>Viento en cabeza</strong>: Tener en cuenta el viento<br>
+              ▸ <strong>Día no estándar</strong>: temperatura alta reduce rendimiento del F404-GE-400
+            </div>
+            <div class="warning-total" id="r_warning_total">
+              BINGO OPERACIONAL RECOMENDADO (+HOLDING +GO-AROUND): --- LB
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span>SYS: NOMINAL <span class="blink">█</span></span>
+    <span>DATA: A1-F18AC-NFM-200 · EST. FLIGHT TEST</span>
+    <span>FUEL DENSITY: 6.8 LB/GAL · JP-5</span>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ─────────────────────────────────────────────
+// STORES DATA  (name, DI value, category)
+// ─────────────────────────────────────────────
+const STORES = [
+  { id:'aim9_tip2',   name:'AIM-9 ×2 Wingtip',  di:0,    cat:'MSL',  qty:false },
+  { id:'aim9_tip1',   name:'AIM-9 ×1 Wingtip',  di:7.5,  cat:'MSL',  qty:false },
+  { id:'aim9_lau',    name:'AIM-9 LAU-7/127',   di:6,    cat:'MSL',  qty:true  },
+  { id:'aim7_fus',    name:'AIM-7 Fuselage',     di:4,    cat:'MSL',  qty:false },
+  { id:'aim7_lau',    name:'AIM-7 LAU-115',      di:6,    cat:'MSL',  qty:true  },
+  { id:'aim120_fus',  name:'AIM-120 Fuselage',   di:4,    cat:'MSL',  qty:false },
+  { id:'aim120_lau',  name:'AIM-120 LAU-127',    di:5,    cat:'MSL',  qty:true  },
+
+  { id:'tank330_cl',  name:'330gal Tank (CL)',    di:10.5, cat:'FUEL', qty:false },
+  { id:'tank330_wg',  name:'330gal Tank (Wing)',  di:14.5, cat:'FUEL', qty:false },
+
+  { id:'agm65',       name:'AGM-65 Maverick',    di:10,   cat:'A/G',  qty:true  },
+  { id:'agm84',       name:'AGM-84 Harpoon',     di:10.5, cat:'A/G',  qty:true  },
+  { id:'agm88',       name:'AGM-88 HARM',        di:9.4,  cat:'A/G',  qty:true  },
+  { id:'agm154',      name:'AGM-154 JSOW',       di:8.2,  cat:'A/G',  qty:true  },
+  { id:'agm84e',      name:'AGM-84E SLAM',       di:11.5, cat:'A/G',  qty:true  },
+  { id:'walleye',     name:'AGM-62 Walleye II',  di:16,   cat:'A/G',  qty:true  },
+  { id:'decoy',       name:'Señuelos',  di:6.4,   cat:'A/G',  qty:true  },
+
+  { id:'gbu12',       name:'GBU-12 Paveway II',  di:5.5,   cat:'BMB',  qty:true  },
+  { id:'gbu16',       name:'GBU-16 Paveway II',  di:9.5,   cat:'BMB',  qty:true  },
+  { id:'gbu10',       name:'GBU-10 Paveway II',  di:15,    cat:'BMB',  qty:true  },
+  { id:'gbu24',       name:'GBU-24 Paveway III',  di:16,    cat:'BMB',  qty:true  },
+  { id:'mk82pyl',     name:'Mk-82 Pylon',        di:3,     cat:'BMB',  qty:true  },
+  { id:'mk83pyl',     name:'Mk-83 Pylon',        di:5,     cat:'BMB',  qty:true  },
+  { id:'mk84pyl',     name:'Mk-84 Pylon',        di:7,     cat:'BMB',  qty:true  },
+  { id:'mk82jdam',     name:'GBU-38 JDAM',        di:3,     cat:'BMB',  qty:true  },
+  { id:'mk83jdam',     name:'GBU-32 JDAM',        di:5,     cat:'BMB',  qty:true  },
+  { id:'mk84jdam',     name:'GBU-31 JDAM',        di:7,     cat:'BMB',  qty:true  },
+  { id:'cbu9899',     name:'CBU-99/100',         di:7.5,  cat:'BMB',  qty:true   },
+  { id:'cbu20',       name:'Mk. 20 Rockeye',     di:7.5,  cat:'BMB',  qty:true   },
+
+  { id:'lau10',       name:'LAU-10', di:25,  cat:'RKT',  qty:true },
+  { id:'lau61',       name:'LAU-61 con carenado',     di:7.5,  cat:'RKT',  qty:true },
+  { id:'lau61wo',       name:'LAU-61 sin carenado',     di:31.5,  cat:'RKT',  qty:true },
+  { id:'lau68',       name:'LAU-68', di:12,  cat:'RKT',  qty:true },
+
+  { id:'flir38',      name:'AN/ASQ-228 ATFLIR',    di:8,    cat:'POD',  qty:false  },
+  { id:'flir38',      name:'AN/AAQ-28 Litening II',    di:9,    cat:'POD',  qty:false  },
+  { id:'flir38',      name:'AN/AAQ-28 Litening II (CL)',    di:12,    cat:'POD',  qty:false  },
+  { id:'flir50',      name:'Datalink',           di:2.9,  cat:'POD',  qty:false  }
+];
+
+// ─────────────────────────────────────────────
+// BINGO DATA from NFM Tables (Fig 11-146 to 11-154)
+// Structure: {zfw, gear, flaps, eng, di_counts, rows: [{dist, mach, alt, cas, cruise_dist, fuel_reqd, time_reqd, sl_fuel, sl_cas, sl_time}]}
+// dist = inbd dist (nm), fuel_reqd = climb+cruise+descend fuel (includes 1500 reserve),
+// sl_fuel = sea-level cruise only fuel (incl 1500 reserve)
+// ─────────────────────────────────────────────
+const TABLES = [
+  // Fig 11-146: Gear UP, Flaps AUTO, 26000lb ZFW
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:0,
+    rows:[
+      {dist:200,mach:0.86,alt:40000,cas:258,cdist:73,fuel:3090,time:29,sl_fuel:4480,sl_cas:279,sl_time:43},
+      {dist:180,mach:0.86,alt:40000,cas:258,cdist:73,fuel:2970,time:26,sl_fuel:4170,sl_cas:279,sl_time:39},
+      {dist:160,mach:0.86,alt:40000,cas:258,cdist:73,fuel:2840,time:24,sl_fuel:3880,sl_cas:279,sl_time:34},
+      {dist:140,mach:0.86,alt:40000,cas:258,cdist:73,fuel:2720,time:21,sl_fuel:3580,sl_cas:278,sl_time:30},
+      {dist:120,mach:0.86,alt:39000,cas:263,cdist:71,fuel:2600,time:19,sl_fuel:3280,sl_cas:278,sl_time:26},
+      {dist:100,mach:0.86,alt:37000,cas:272,cdist:66,fuel:2470,time:16,sl_fuel:2980,sl_cas:278,sl_time:22},
+      {dist:80, mach:0.86,alt:33000,cas:280,cdist:58,fuel:2340,time:14,sl_fuel:2680,sl_cas:277,sl_time:17},
+      {dist:60, mach:0.86,alt:26000,cas:278,cdist:44,fuel:2190,time:11,sl_fuel:2390,sl_cas:277,sl_time:13},
+      {dist:40, mach:0.86,alt:18000,cas:277,cdist:30,fuel:2010,time:8, sl_fuel:2090,sl_cas:277,sl_time:9},
+      {dist:20, mach:0.86,alt:7000, cas:278,cdist:12,fuel:1790,time:4, sl_fuel:1800,sl_cas:276,sl_time:4},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:50,
+    rows:[
+      {dist:200,mach:0.82,alt:40000,cas:254,cdist:65,fuel:3270,time:29,sl_fuel:4760,sl_cas:275,sl_time:44},
+      {dist:180,mach:0.82,alt:40000,cas:254,cdist:65,fuel:3130,time:26,sl_fuel:4430,sl_cas:275,sl_time:39},
+      {dist:160,mach:0.82,alt:40000,cas:253,cdist:65,fuel:2990,time:24,sl_fuel:4100,sl_cas:274,sl_time:35},
+      {dist:140,mach:0.82,alt:40000,cas:253,cdist:65,fuel:2850,time:21,sl_fuel:3770,sl_cas:274,sl_time:31},
+      {dist:120,mach:0.82,alt:40000,cas:253,cdist:65,fuel:2710,time:19,sl_fuel:3450,sl_cas:274,sl_time:26},
+      {dist:100,mach:0.82,alt:39000,cas:258,cdist:62,fuel:2570,time:16,sl_fuel:3120,sl_cas:273,sl_time:22},
+      {dist:80, mach:0.82,alt:33000,cas:268,cdist:51,fuel:2430,time:13,sl_fuel:2800,sl_cas:273,sl_time:18},
+      {dist:60, mach:0.82,alt:28000,cas:268,cdist:42,fuel:2260,time:11,sl_fuel:2470,sl_cas:272,sl_time:13},
+      {dist:40, mach:0.82,alt:18000,cas:269,cdist:27,fuel:2070,time:7, sl_fuel:2150,sl_cas:272,sl_time:9},
+      {dist:20, mach:0.82,alt:3000, cas:270,cdist:5, fuel:1820,time:4, sl_fuel:1830,sl_cas:272,sl_time:4},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:100,
+    rows:[
+      {dist:200,mach:0.78,alt:40000,cas:259,cdist:57,fuel:3470,time:28,sl_fuel:5040,sl_cas:271,sl_time:44},
+      {dist:180,mach:0.78,alt:40000,cas:259,cdist:57,fuel:3310,time:26,sl_fuel:4680,sl_cas:270,sl_time:40},
+      {dist:160,mach:0.78,alt:40000,cas:259,cdist:57,fuel:3150,time:23,sl_fuel:4330,sl_cas:270,sl_time:36},
+      {dist:140,mach:0.78,alt:40000,cas:259,cdist:57,fuel:2990,time:21,sl_fuel:3970,sl_cas:269,sl_time:31},
+      {dist:120,mach:0.78,alt:40000,cas:258,cdist:57,fuel:2830,time:18,sl_fuel:3610,sl_cas:269,sl_time:27},
+      {dist:100,mach:0.78,alt:39000,cas:256,cdist:56,fuel:2670,time:16,sl_fuel:3260,sl_cas:268,sl_time:22},
+      {dist:80, mach:0.78,alt:35000,cas:259,cdist:48,fuel:2510,time:13,sl_fuel:2910,sl_cas:268,sl_time:18},
+      {dist:60, mach:0.78,alt:28000,cas:260,cdist:38,fuel:2330,time:10,sl_fuel:2550,sl_cas:267,sl_time:13},
+      {dist:40, mach:0.78,alt:19000,cas:262,cdist:25,fuel:2120,time:7, sl_fuel:2200,sl_cas:267,sl_time:9},
+      {dist:20, mach:0.78,alt:3000, cas:262,cdist:4, fuel:1850,time:4, sl_fuel:1850,sl_cas:266,sl_time:5},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:150,
+    rows:[
+      {dist:200,mach:0.76,alt:40000,cas:243,cdist:52,fuel:3660,time:29,sl_fuel:5330,sl_cas:266,sl_time:45},
+      {dist:180,mach:0.76,alt:40000,cas:243,cdist:52,fuel:3490,time:27,sl_fuel:4940,sl_cas:265,sl_time:41},
+      {dist:160,mach:0.76,alt:40000,cas:243,cdist:52,fuel:3310,time:24,sl_fuel:4550,sl_cas:265,sl_time:36},
+      {dist:140,mach:0.76,alt:40000,cas:242,cdist:52,fuel:3140,time:21,sl_fuel:4160,sl_cas:264,sl_time:32},
+      {dist:120,mach:0.76,alt:40000,cas:242,cdist:52,fuel:2960,time:19,sl_fuel:3780,sl_cas:264,sl_time:27},
+      {dist:100,mach:0.76,alt:39000,cas:245,cdist:50,fuel:2790,time:16,sl_fuel:3400,sl_cas:263,sl_time:23},
+      {dist:80, mach:0.76,alt:35000,cas:248,cdist:44,fuel:2610,time:14,sl_fuel:3020,sl_cas:263,sl_time:18},
+      {dist:60, mach:0.76,alt:29000,cas:252,cdist:35,fuel:2410,time:11,sl_fuel:2640,sl_cas:262,sl_time:14},
+      {dist:40, mach:0.76,alt:17000,cas:256,cdist:20,fuel:2160,time:8, sl_fuel:2260,sl_cas:262,sl_time:9},
+      {dist:20, mach:0.76,alt:7000, cas:254,cdist:8, fuel:1860,time:4, sl_fuel:1880,sl_cas:261,sl_time:5},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:200,
+    rows:[
+      {dist:200,mach:0.75,alt:40000,cas:238,cdist:47,fuel:3840,time:29,sl_fuel:5620,sl_cas:262,sl_time:46},
+      {dist:180,mach:0.75,alt:40000,cas:238,cdist:47,fuel:3650,time:27,sl_fuel:5200,sl_cas:261,sl_time:41},
+      {dist:160,mach:0.75,alt:40000,cas:238,cdist:47,fuel:3460,time:24,sl_fuel:4780,sl_cas:260,sl_time:37},
+      {dist:140,mach:0.75,alt:40000,cas:237,cdist:47,fuel:3260,time:21,sl_fuel:4360,sl_cas:260,sl_time:32},
+      {dist:120,mach:0.75,alt:40000,cas:237,cdist:47,fuel:3070,time:19,sl_fuel:3950,sl_cas:259,sl_time:28},
+      {dist:100,mach:0.75,alt:40000,cas:237,cdist:47,fuel:2880,time:16,sl_fuel:3540,sl_cas:258,sl_time:23},
+      {dist:80, mach:0.75,alt:35000,cas:240,cdist:40,fuel:2690,time:13,sl_fuel:3130,sl_cas:258,sl_time:19},
+      {dist:60, mach:0.75,alt:28000,cas:246,cdist:31,fuel:2470,time:11,sl_fuel:2720,sl_cas:257,sl_time:14},
+      {dist:40, mach:0.75,alt:17000,cas:250,cdist:19,fuel:2210,time:8, sl_fuel:2310,sl_cas:256,sl_time:9},
+      {dist:20, mach:0.75,alt:7000, cas:250,cdist:8, fuel:1890,time:4, sl_fuel:1910,sl_cas:256,sl_time:5},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:250,
+    rows:[
+      {dist:200,mach:0.72,alt:40000,cas:232,cdist:43,fuel:4030,time:30,sl_fuel:5910,sl_cas:258,sl_time:47},
+      {dist:180,mach:0.72,alt:40000,cas:232,cdist:43,fuel:3820,time:27,sl_fuel:5450,sl_cas:257,sl_time:42},
+      {dist:160,mach:0.72,alt:40000,cas:232,cdist:43,fuel:3600,time:25,sl_fuel:5010,sl_cas:256,sl_time:37},
+      {dist:140,mach:0.72,alt:40000,cas:231,cdist:43,fuel:3390,time:22,sl_fuel:4560,sl_cas:256,sl_time:33},
+      {dist:120,mach:0.72,alt:40000,cas:231,cdist:43,fuel:3180,time:19,sl_fuel:4120,sl_cas:255,sl_time:28},
+      {dist:100,mach:0.72,alt:38000,cas:229,cdist:40,fuel:2970,time:16,sl_fuel:3680,sl_cas:254,sl_time:24},
+      {dist:80, mach:0.72,alt:34000,cas:236,cdist:35,fuel:2760,time:14,sl_fuel:3240,sl_cas:253,sl_time:19},
+      {dist:60, mach:0.72,alt:28000,cas:240,cdist:29,fuel:2530,time:11,sl_fuel:2800,sl_cas:253,sl_time:14},
+      {dist:40, mach:0.72,alt:17000,cas:244,cdist:17,fuel:2250,time:8, sl_fuel:2370,sl_cas:252,sl_time:10},
+      {dist:20, mach:0.72,alt:7000, cas:245,cdist:7, fuel:1910,time:4, sl_fuel:1940,sl_cas:251,sl_time:5},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'two', di:300,
+    rows:[
+      {dist:200,mach:0.68,alt:39000,cas:226,cdist:39,fuel:4220,time:31,sl_fuel:6190,sl_cas:254,sl_time:47},
+      {dist:180,mach:0.68,alt:39000,cas:226,cdist:39,fuel:3990,time:28,sl_fuel:5710,sl_cas:253,sl_time:43},
+      {dist:160,mach:0.68,alt:39000,cas:226,cdist:39,fuel:3750,time:25,sl_fuel:5230,sl_cas:252,sl_time:38},
+      {dist:140,mach:0.68,alt:39000,cas:225,cdist:39,fuel:3520,time:23,sl_fuel:4750,sl_cas:252,sl_time:33},
+      {dist:120,mach:0.68,alt:39000,cas:225,cdist:39,fuel:3300,time:20,sl_fuel:4280,sl_cas:251,sl_time:29},
+      {dist:100,mach:0.68,alt:38000,cas:225,cdist:37,fuel:3070,time:17,sl_fuel:3810,sl_cas:250,sl_time:24},
+      {dist:80, mach:0.68,alt:34000,cas:230,cdist:33,fuel:2830,time:14,sl_fuel:3350,sl_cas:249,sl_time:19},
+      {dist:60, mach:0.68,alt:28000,cas:235,cdist:26,fuel:2590,time:11,sl_fuel:2880,sl_cas:248,sl_time:15},
+      {dist:40, mach:0.68,alt:17000,cas:238,cdist:16,fuel:2290,time:8, sl_fuel:2420,sl_cas:247,sl_time:10},
+      {dist:20, mach:0.68,alt:7000, cas:241,cdist:6, fuel:1940,time:5, sl_fuel:1960,sl_cas:246,sl_time:5},
+    ]},
+
+  // Fig 11-147: Gear UP, Flaps AUTO, 30000lb ZFW
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:0,
+    rows:[
+      {dist:200,mach:0.86,alt:40000,cas:262,cdist:74,fuel:3230,time:29,sl_fuel:4610,sl_cas:302,sl_time:40},
+      {dist:180,mach:0.86,alt:40000,cas:262,cdist:74,fuel:3100,time:26,sl_fuel:4290,sl_cas:302,sl_time:36},
+      {dist:160,mach:0.86,alt:39000,cas:266,cdist:72,fuel:2960,time:24,sl_fuel:3980,sl_cas:301,sl_time:32},
+      {dist:140,mach:0.86,alt:39000,cas:266,cdist:72,fuel:2820,time:21,sl_fuel:3670,sl_cas:301,sl_time:28},
+      {dist:120,mach:0.86,alt:38000,cas:271,cdist:69,fuel:2680,time:19,sl_fuel:3360,sl_cas:300,sl_time:24},
+      {dist:100,mach:0.86,alt:35000,cas:286,cdist:62,fuel:2540,time:16,sl_fuel:3050,sl_cas:299,sl_time:20},
+      {dist:80, mach:0.86,alt:32000,cas:295,cdist:56,fuel:2400,time:14,sl_fuel:2740,sl_cas:299,sl_time:16},
+      {dist:60, mach:0.86,alt:24000,cas:297,cdist:42,fuel:2230,time:11,sl_fuel:2430,sl_cas:298,sl_time:12},
+      {dist:40, mach:0.86,alt:17000,cas:294,cdist:29,fuel:2040,time:8, sl_fuel:2120,sl_cas:297,sl_time:8},
+      {dist:20, mach:0.86,alt:3000, cas:296,cdist:5, fuel:1800,time:4, sl_fuel:1810,sl_cas:297,sl_time:4},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:50,
+    rows:[
+      {dist:200,mach:0.82,alt:40000,cas:256,cdist:66,fuel:3430,time:29,sl_fuel:4920,sl_cas:293,sl_time:41},
+      {dist:180,mach:0.82,alt:40000,cas:256,cdist:66,fuel:3280,time:26,sl_fuel:4570,sl_cas:292,sl_time:37},
+      {dist:160,mach:0.82,alt:40000,cas:256,cdist:66,fuel:3120,time:24,sl_fuel:4230,sl_cas:291,sl_time:33},
+      {dist:140,mach:0.82,alt:39000,cas:261,cdist:64,fuel:2970,time:21,sl_fuel:3880,sl_cas:290,sl_time:29},
+      {dist:120,mach:0.82,alt:38000,cas:286,cdist:62,fuel:2810,time:19,sl_fuel:3540,sl_cas:289,sl_time:25},
+      {dist:100,mach:0.82,alt:36000,cas:278,cdist:58,fuel:2650,time:16,sl_fuel:3200,sl_cas:289,sl_time:21},
+      {dist:80, mach:0.82,alt:32000,cas:288,cdist:50,fuel:2490,time:13,sl_fuel:2860,sl_cas:288,sl_time:17},
+      {dist:60, mach:0.82,alt:26000,cas:287,cdist:40,fuel:2310,time:11,sl_fuel:2520,sl_cas:287,sl_time:13},
+      {dist:40, mach:0.82,alt:18000,cas:285,cdist:28,fuel:2100,time:7, sl_fuel:2180,sl_cas:286,sl_time:8},
+      {dist:20, mach:0.82,alt:3000, cas:285,cdist:5, fuel:1830,time:4, sl_fuel:1840,sl_cas:285,sl_time:4},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:100,
+    rows:[
+      {dist:200,mach:0.78,alt:40000,cas:253,cdist:60,fuel:3630,time:29,sl_fuel:5220,sl_cas:282,sl_time:43},
+      {dist:180,mach:0.78,alt:40000,cas:253,cdist:60,fuel:3460,time:26,sl_fuel:4830,sl_cas:281,sl_time:38},
+      {dist:160,mach:0.78,alt:40000,cas:253,cdist:60,fuel:3280,time:24,sl_fuel:4460,sl_cas:280,sl_time:34},
+      {dist:140,mach:0.78,alt:40000,cas:254,cdist:60,fuel:3110,time:21,sl_fuel:4080,sl_cas:280,sl_time:30},
+      {dist:120,mach:0.78,alt:40000,cas:254,cdist:60,fuel:2940,time:19,sl_fuel:3710,sl_cas:279,sl_time:26},
+      {dist:100,mach:0.78,alt:36000,cas:269,cdist:52,fuel:2760,time:16,sl_fuel:3340,sl_cas:279,sl_time:22},
+      {dist:80, mach:0.78,alt:33000,cas:273,cdist:47,fuel:2580,time:13,sl_fuel:2970,sl_cas:279,sl_time:17},
+      {dist:60, mach:0.78,alt:27000,cas:277,cdist:38,fuel:2380,time:10,sl_fuel:2600,sl_cas:278,sl_time:13},
+      {dist:40, mach:0.78,alt:18000,cas:278,cdist:25,fuel:2150,time:7, sl_fuel:2230,sl_cas:278,sl_time:9},
+      {dist:20, mach:0.78,alt:3000, cas:278,cdist:4, fuel:1860,time:4, sl_fuel:1870,sl_cas:277,sl_time:4},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:150,
+    rows:[
+      {dist:200,mach:0.76,alt:40000,cas:259,cdist:54,fuel:3870,time:29,sl_fuel:5520,sl_cas:277,sl_time:43},
+      {dist:180,mach:0.76,alt:40000,cas:259,cdist:54,fuel:3670,time:26,sl_fuel:5110,sl_cas:277,sl_time:39},
+      {dist:160,mach:0.76,alt:40000,cas:259,cdist:54,fuel:3480,time:24,sl_fuel:4700,sl_cas:276,sl_time:35},
+      {dist:140,mach:0.76,alt:40000,cas:259,cdist:54,fuel:3280,time:21,sl_fuel:4290,sl_cas:276,sl_time:30},
+      {dist:120,mach:0.76,alt:38000,cas:258,cdist:51,fuel:3090,time:19,sl_fuel:3890,sl_cas:275,sl_time:26},
+      {dist:100,mach:0.76,alt:37000,cas:259,cdist:49,fuel:2890,time:16,sl_fuel:3490,sl_cas:275,sl_time:22},
+      {dist:80, mach:0.76,alt:33000,cas:265,cdist:43,fuel:2690,time:14,sl_fuel:3090,sl_cas:274,sl_time:18},
+      {dist:60, mach:0.76,alt:28000,cas:267,cdist:36,fuel:2470,time:11,sl_fuel:2690,sl_cas:273,sl_time:13},
+      {dist:40, mach:0.76,alt:14000,cas:274,cdist:18,fuel:2200,time:8, sl_fuel:2290,sl_cas:273,sl_time:9},
+      {dist:20, mach:0.76,alt:7000, cas:273,cdist:9, fuel:1880,time:4, sl_fuel:1900,sl_cas:272,sl_time:4},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:200,
+    rows:[
+      {dist:200,mach:0.75,alt:40000,cas:243,cdist:50,fuel:4070,time:29,sl_fuel:5820,sl_cas:274,sl_time:44},
+      {dist:180,mach:0.75,alt:40000,cas:243,cdist:50,fuel:3860,time:27,sl_fuel:5380,sl_cas:273,sl_time:40},
+      {dist:160,mach:0.75,alt:40000,cas:243,cdist:50,fuel:3640,time:24,sl_fuel:4940,sl_cas:272,sl_time:35},
+      {dist:140,mach:0.75,alt:39000,cas:247,cdist:48,fuel:3430,time:22,sl_fuel:4500,sl_cas:272,sl_time:31},
+      {dist:120,mach:0.75,alt:38000,cas:250,cdist:47,fuel:3210,time:19,sl_fuel:4070,sl_cas:271,sl_time:27},
+      {dist:100,mach:0.75,alt:37000,cas:253,cdist:45,fuel:3000,time:16,sl_fuel:3640,sl_cas:270,sl_time:22},
+      {dist:80, mach:0.75,alt:33000,cas:256,cdist:40,fuel:2770,time:14,sl_fuel:3210,sl_cas:270,sl_time:18},
+      {dist:60, mach:0.75,alt:27000,cas:259,cdist:32,fuel:2540,time:11,sl_fuel:2780,sl_cas:269,sl_time:13},
+      {dist:40, mach:0.75,alt:14000,cas:266,cdist:16,fuel:2250,time:8, sl_fuel:2350,sl_cas:269,sl_time:9},
+      {dist:20, mach:0.75,alt:7000, cas:267,cdist:8, fuel:1910,time:4, sl_fuel:1930,sl_cas:268,sl_time:4},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:250,
+    rows:[
+      {dist:200,mach:0.72,alt:39000,cas:242,cdist:45,fuel:4280,time:30,sl_fuel:6120,sl_cas:270,sl_time:45},
+      {dist:180,mach:0.72,alt:39000,cas:242,cdist:45,fuel:4050,time:27,sl_fuel:5650,sl_cas:269,sl_time:40},
+      {dist:160,mach:0.72,alt:39000,cas:242,cdist:45,fuel:3810,time:25,sl_fuel:5180,sl_cas:268,sl_time:36},
+      {dist:140,mach:0.72,alt:38000,cas:245,cdist:43,fuel:3570,time:22,sl_fuel:4710,sl_cas:268,sl_time:31},
+      {dist:120,mach:0.72,alt:38000,cas:245,cdist:43,fuel:3340,time:19,sl_fuel:4240,sl_cas:267,sl_time:27},
+      {dist:100,mach:0.72,alt:36000,cas:248,cdist:40,fuel:3100,time:17,sl_fuel:3780,sl_cas:266,sl_time:23},
+      {dist:80, mach:0.72,alt:33000,cas:248,cdist:37,fuel:2860,time:14,sl_fuel:3320,sl_cas:266,sl_time:18},
+      {dist:60, mach:0.72,alt:28000,cas:254,cdist:31,fuel:2600,time:11,sl_fuel:2860,sl_cas:265,sl_time:14},
+      {dist:40, mach:0.72,alt:14000,cas:261,cdist:15,fuel:2300,time:8, sl_fuel:2410,sl_cas:265,sl_time:9},
+      {dist:20, mach:0.72,alt:7000, cas:261,cdist:7, fuel:1930,time:4, sl_fuel:1960,sl_cas:264,sl_time:5},
+    ]},
+  { zfw:30000, gear:'up', flaps:'auto', eng:'two', di:300,
+    rows:[
+      {dist:200,mach:0.68,alt:37000,cas:240,cdist:39,fuel:4510,time:31,sl_fuel:6410,sl_cas:266,sl_time:45},
+      {dist:180,mach:0.68,alt:37000,cas:240,cdist:39,fuel:4240,time:28,sl_fuel:5910,sl_cas:265,sl_time:41},
+      {dist:160,mach:0.68,alt:37000,cas:240,cdist:39,fuel:3980,time:25,sl_fuel:5410,sl_cas:265,sl_time:36},
+      {dist:140,mach:0.68,alt:37000,cas:240,cdist:39,fuel:3720,time:23,sl_fuel:4910,sl_cas:264,sl_time:32},
+      {dist:120,mach:0.68,alt:36000,cas:241,cdist:37,fuel:3460,time:20,sl_fuel:4420,sl_cas:263,sl_time:27},
+      {dist:100,mach:0.68,alt:36000,cas:241,cdist:37,fuel:3210,time:17,sl_fuel:3930,sl_cas:262,sl_time:23},
+      {dist:80, mach:0.68,alt:33000,cas:243,cdist:34,fuel:2940,time:14,sl_fuel:3440,sl_cas:262,sl_time:18},
+      {dist:60, mach:0.68,alt:27000,cas:249,cdist:27,fuel:2670,time:11,sl_fuel:2950,sl_cas:261,sl_time:14},
+      {dist:40, mach:0.68,alt:15000,cas:255,cdist:15,fuel:2350,time:8, sl_fuel:2470,sl_cas:260,sl_time:9},
+      {dist:20, mach:0.68,alt:7000, cas:255,cdist:7, fuel:1960,time:4, sl_fuel:1980,sl_cas:260,sl_time:5},
+    ]},
+
+  // Fig 11-148: Gear UP, Half FLAPS, 26000lb
+  { zfw:26000, gear:'up', flaps:'half', eng:'two', di:0,
+    rows:[
+      {dist:200,mach:0.47,alt:34000,cas:198,cdist:22,fuel:5360,time:38,sl_fuel:7680,sl_cas:207,sl_time:58},
+      {dist:180,mach:0.47,alt:34000,cas:198,cdist:22,fuel:5020,time:34,sl_fuel:7040,sl_cas:207,sl_time:52},
+      {dist:160,mach:0.47,alt:34000,cas:198,cdist:22,fuel:4670,time:31,sl_fuel:6400,sl_cas:206,sl_time:47},
+      {dist:140,mach:0.47,alt:34000,cas:198,cdist:22,fuel:4330,time:27,sl_fuel:5770,sl_cas:206,sl_time:41},
+      {dist:120,mach:0.47,alt:34000,cas:198,cdist:22,fuel:3990,time:24,sl_fuel:5150,sl_cas:205,sl_time:35},
+      {dist:100,mach:0.47,alt:32000,cas:198,cdist:20,fuel:3660,time:20,sl_fuel:4530,sl_cas:205,sl_time:29},
+      {dist:80, mach:0.47,alt:30000,cas:198,cdist:19,fuel:3310,time:16,sl_fuel:3920,sl_cas:204,sl_time:24},
+      {dist:60, mach:0.47,alt:28000,cas:197,cdist:17,fuel:2960,time:13,sl_fuel:3310,sl_cas:204,sl_time:18},
+      {dist:40, mach:0.47,alt:18000,cas:197,cdist:11,fuel:2570,time:9, sl_fuel:2700,sl_cas:203,sl_time:12},
+      {dist:20, mach:0.47,alt:7000, cas:200,cdist:4, fuel:2090,time:5, sl_fuel:2100,sl_cas:203,sl_time:6},
+    ]},
+  { zfw:26000, gear:'up', flaps:'half', eng:'two', di:150,
+    rows:[
+      {dist:200,mach:0.43,alt:30000,cas:196,cdist:16,fuel:6000,time:40,sl_fuel:8360,sl_cas:202,sl_time:60},
+      {dist:180,mach:0.43,alt:30000,cas:194,cdist:16,fuel:5580,time:37,sl_fuel:7640,sl_cas:201,sl_time:54},
+      {dist:160,mach:0.43,alt:30000,cas:192,cdist:16,fuel:5170,time:33,sl_fuel:6930,sl_cas:200,sl_time:48},
+      {dist:140,mach:0.43,alt:30000,cas:190,cdist:16,fuel:4760,time:29,sl_fuel:6230,sl_cas:200,sl_time:42},
+      {dist:120,mach:0.43,alt:30000,cas:189,cdist:16,fuel:4350,time:25,sl_fuel:5540,sl_cas:199,sl_time:36},
+      {dist:100,mach:0.43,alt:30000,cas:187,cdist:16,fuel:3940,time:21,sl_fuel:4850,sl_cas:199,sl_time:30},
+      {dist:80, mach:0.43,alt:29000,cas:186,cdist:15,fuel:3540,time:18,sl_fuel:4170,sl_cas:198,sl_time:24},
+      {dist:60, mach:0.43,alt:27000,cas:186,cdist:14,fuel:3130,time:13,sl_fuel:3500,sl_cas:198,sl_time:18},
+      {dist:40, mach:0.43,alt:18000,cas:190,cdist:9, fuel:2690,time:10,sl_fuel:2830,sl_cas:197,sl_time:12},
+      {dist:20, mach:0.43,alt:7000, cas:191,cdist:4, fuel:2160,time:6, sl_fuel:2170,sl_cas:197,sl_time:6},
+    ]},
+  { zfw:26000, gear:'up', flaps:'half', eng:'two', di:300,
+    rows:[
+      {dist:200,mach:0.42,alt:30000,cas:172,cdist:14,fuel:6520,time:45,sl_fuel:9020,sl_cas:195,sl_time:62},
+      {dist:180,mach:0.42,alt:30000,cas:171,cdist:14,fuel:6050,time:40,sl_fuel:8230,sl_cas:194,sl_time:56},
+      {dist:160,mach:0.42,alt:30000,cas:171,cdist:14,fuel:5580,time:36,sl_fuel:7440,sl_cas:194,sl_time:49},
+      {dist:140,mach:0.42,alt:30000,cas:171,cdist:14,fuel:5120,time:32,sl_fuel:6670,sl_cas:194,sl_time:43},
+      {dist:120,mach:0.42,alt:30000,cas:171,cdist:14,fuel:4660,time:27,sl_fuel:5910,sl_cas:193,sl_time:37},
+      {dist:100,mach:0.42,alt:30000,cas:171,cdist:14,fuel:4210,time:23,sl_fuel:5160,sl_cas:192,sl_time:31},
+      {dist:80, mach:0.42,alt:29000,cas:172,cdist:13,fuel:3750,time:19,sl_fuel:4420,sl_cas:192,sl_time:25},
+      {dist:60, mach:0.42,alt:26000,cas:173,cdist:12,fuel:3290,time:14,sl_fuel:3680,sl_cas:191,sl_time:19},
+      {dist:40, mach:0.42,alt:18000,cas:180,cdist:8, fuel:2800,time:10,sl_fuel:2950,sl_cas:190,sl_time:13},
+      {dist:20, mach:0.42,alt:3000, cas:185,cdist:1, fuel:2220,time:6, sl_fuel:2230,sl_cas:190,sl_time:6},
+    ]},
+
+  // Fig 11-150: Gear DOWN, Flaps AUTO, 26000lb
+  { zfw:26000, gear:'down', flaps:'auto', eng:'two', di:0,
+    rows:[
+      {dist:200,mach:0.52,alt:35000,cas:201,cdist:24,fuel:5140,time:37,sl_fuel:7510,sl_cas:218,sl_time:55},
+      {dist:180,mach:0.52,alt:35000,cas:200,cdist:24,fuel:4810,time:33,sl_fuel:6890,sl_cas:217,sl_time:50},
+      {dist:160,mach:0.52,alt:35000,cas:199,cdist:24,fuel:4490,time:30,sl_fuel:6270,sl_cas:216,sl_time:45},
+      {dist:140,mach:0.52,alt:35000,cas:198,cdist:24,fuel:4180,time:27,sl_fuel:5650,sl_cas:215,sl_time:39},
+      {dist:120,mach:0.52,alt:35000,cas:197,cdist:24,fuel:3860,time:23,sl_fuel:5040,sl_cas:214,sl_time:34},
+      {dist:100,mach:0.52,alt:34000,cas:198,cdist:23,fuel:3550,time:20,sl_fuel:4440,sl_cas:213,sl_time:28},
+      {dist:80, mach:0.52,alt:32000,cas:199,cdist:22,fuel:3230,time:16,sl_fuel:3840,sl_cas:212,sl_time:23},
+      {dist:60, mach:0.52,alt:28000,cas:201,cdist:19,fuel:2900,time:12,sl_fuel:3250,sl_cas:211,sl_time:17},
+      {dist:40, mach:0.52,alt:18000,cas:201,cdist:12,fuel:2520,time:9, sl_fuel:2670,sl_cas:210,sl_time:11},
+      {dist:20, mach:0.52,alt:7000, cas:207,cdist:4, fuel:2070,time:5, sl_fuel:2080,sl_cas:209,sl_time:6},
+    ]},
+  { zfw:26000, gear:'down', flaps:'auto', eng:'two', di:150,
+    rows:[
+      {dist:200,mach:0.47,alt:32000,cas:186,cdist:18,fuel:5720,time:40,sl_fuel:8170,sl_cas:210,sl_time:57},
+      {dist:180,mach:0.47,alt:32000,cas:186,cdist:18,fuel:5330,time:36,sl_fuel:7480,sl_cas:209,sl_time:52},
+      {dist:160,mach:0.47,alt:32000,cas:187,cdist:18,fuel:4940,time:32,sl_fuel:6800,sl_cas:209,sl_time:46},
+      {dist:140,mach:0.47,alt:32000,cas:187,cdist:18,fuel:4560,time:29,sl_fuel:6120,sl_cas:208,sl_time:40},
+      {dist:120,mach:0.47,alt:32000,cas:188,cdist:18,fuel:4180,time:25,sl_fuel:5440,sl_cas:207,sl_time:35},
+      {dist:100,mach:0.47,alt:32000,cas:188,cdist:18,fuel:3810,time:21,sl_fuel:4770,sl_cas:206,sl_time:29},
+      {dist:80, mach:0.47,alt:30000,cas:190,cdist:17,fuel:3430,time:17,sl_fuel:4110,sl_cas:205,sl_time:23},
+      {dist:60, mach:0.47,alt:27000,cas:191,cdist:15,fuel:3050,time:13,sl_fuel:3450,sl_cas:204,sl_time:18},
+      {dist:40, mach:0.47,alt:18000,cas:191,cdist:10,fuel:2630,time:9, sl_fuel:2790,sl_cas:203,sl_time:12},
+      {dist:20, mach:0.47,alt:7000, cas:197,cdist:4, fuel:2130,time:5, sl_fuel:2150,sl_cas:202,sl_time:6},
+    ]},
+  { zfw:26000, gear:'down', flaps:'auto', eng:'two', di:300,
+    rows:[
+      {dist:200,mach:0.44,alt:30000,cas:186,cdist:15,fuel:6280,time:42,sl_fuel:8850,sl_cas:203,sl_time:59},
+      {dist:180,mach:0.44,alt:30000,cas:185,cdist:15,fuel:5840,time:38,sl_fuel:8080,sl_cas:202,sl_time:53},
+      {dist:160,mach:0.44,alt:30000,cas:185,cdist:15,fuel:5390,time:34,sl_fuel:7330,sl_cas:201,sl_time:48},
+      {dist:140,mach:0.44,alt:30000,cas:184,cdist:15,fuel:4950,time:30,sl_fuel:6580,sl_cas:201,sl_time:42},
+      {dist:120,mach:0.44,alt:30000,cas:184,cdist:15,fuel:4510,time:26,sl_fuel:5830,sl_cas:199,sl_time:36},
+      {dist:100,mach:0.44,alt:30000,cas:183,cdist:15,fuel:4080,time:22,sl_fuel:5090,sl_cas:198,sl_time:30},
+      {dist:80, mach:0.44,alt:29000,cas:184,cdist:14,fuel:3650,time:18,sl_fuel:4360,sl_cas:197,sl_time:24},
+      {dist:60, mach:0.44,alt:26000,cas:184,cdist:13,fuel:3220,time:13,sl_fuel:3640,sl_cas:196,sl_time:18},
+      {dist:40, mach:0.44,alt:19000,cas:186,cdist:9, fuel:2750,time:10,sl_fuel:2920,sl_cas:195,sl_time:12},
+      {dist:20, mach:0.44,alt:6000, cas:190,cdist:3, fuel:2190,time:6, sl_fuel:2210,sl_cas:194,sl_time:6},
+    ]},
+
+  // Fig 11-151: ONE ENGINE, Gear UP, Flaps AUTO, 26000lb
+  { zfw:26000, gear:'up', flaps:'auto', eng:'one', di:0,
+    rows:[
+      {dist:200,mach:0.75,alt:33000,cas:275,cdist:52,fuel:3380,time:31,sl_fuel:4210,sl_cas:271,sl_time:44},
+      {dist:180,mach:0.75,alt:33000,cas:275,cdist:52,fuel:3230,time:28,sl_fuel:3940,sl_cas:271,sl_time:40},
+      {dist:160,mach:0.75,alt:33000,cas:274,cdist:52,fuel:3080,time:25,sl_fuel:3660,sl_cas:270,sl_time:36},
+      {dist:140,mach:0.75,alt:31000,cas:273,cdist:48,fuel:2930,time:23,sl_fuel:3390,sl_cas:270,sl_time:31},
+      {dist:120,mach:0.75,alt:28000,cas:272,cdist:43,fuel:2770,time:20,sl_fuel:3120,sl_cas:269,sl_time:27},
+      {dist:100,mach:0.75,alt:22000,cas:268,cdist:33,fuel:2600,time:18,sl_fuel:2840,sl_cas:269,sl_time:22},
+      {dist:80, mach:0.75,alt:18000,cas:266,cdist:27,fuel:2410,time:15,sl_fuel:2570,sl_cas:269,sl_time:18},
+      {dist:60, mach:0.75,alt:14000,cas:264,cdist:21,fuel:2210,time:12,sl_fuel:2300,sl_cas:268,sl_time:13},
+      {dist:40, mach:0.75,alt:9000, cas:264,cdist:13,fuel:2000,time:8, sl_fuel:2040,sl_cas:268,sl_time:9},
+      {dist:20, mach:0.75,alt:4000, cas:264,cdist:6, fuel:1760,time:4, sl_fuel:1770,sl_cas:267,sl_time:4},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'one', di:150,
+    rows:[
+      {dist:200,mach:0.70,alt:20000,cas:248,cdist:22,fuel:4300,time:36,sl_fuel:5110,sl_cas:255,sl_time:47},
+      {dist:180,mach:0.70,alt:20000,cas:248,cdist:22,fuel:4040,time:33,sl_fuel:4740,sl_cas:255,sl_time:42},
+      {dist:160,mach:0.70,alt:20000,cas:247,cdist:22,fuel:3780,time:29,sl_fuel:4370,sl_cas:254,sl_time:38},
+      {dist:140,mach:0.70,alt:20000,cas:247,cdist:22,fuel:3520,time:25,sl_fuel:4000,sl_cas:253,sl_time:33},
+      {dist:120,mach:0.70,alt:19000,cas:247,cdist:21,fuel:3260,time:22,sl_fuel:3640,sl_cas:252,sl_time:29},
+      {dist:100,mach:0.70,alt:17000,cas:247,cdist:19,fuel:3000,time:19,sl_fuel:3280,sl_cas:251,sl_time:24},
+      {dist:80, mach:0.70,alt:16000,cas:246,cdist:18,fuel:2730,time:15,sl_fuel:2920,sl_cas:250,sl_time:19},
+      {dist:60, mach:0.70,alt:13000,cas:246,cdist:14,fuel:2450,time:12,sl_fuel:2560,sl_cas:250,sl_time:14},
+      {dist:40, mach:0.70,alt:8000, cas:245,cdist:9, fuel:2160,time:9, sl_fuel:2210,sl_cas:249,sl_time:10},
+      {dist:20, mach:0.70,alt:3000, cas:247,cdist:3, fuel:1840,time:5, sl_fuel:1850,sl_cas:248,sl_time:5},
+    ]},
+  { zfw:26000, gear:'up', flaps:'auto', eng:'one', di:300,
+    rows:[
+      {dist:200,mach:0.70,alt:17000,cas:232,cdist:15,fuel:5100,time:41,sl_fuel:5980,sl_cas:241,sl_time:50},
+      {dist:180,mach:0.70,alt:17000,cas:231,cdist:15,fuel:4740,time:37,sl_fuel:5510,sl_cas:240,sl_time:45},
+      {dist:160,mach:0.70,alt:17000,cas:231,cdist:15,fuel:4390,time:33,sl_fuel:5060,sl_cas:240,sl_time:40},
+      {dist:140,mach:0.70,alt:17000,cas:230,cdist:15,fuel:4050,time:29,sl_fuel:4600,sl_cas:239,sl_time:35},
+      {dist:120,mach:0.70,alt:17000,cas:229,cdist:15,fuel:3700,time:25,sl_fuel:4150,sl_cas:238,sl_time:30},
+      {dist:100,mach:0.70,alt:17000,cas:229,cdist:15,fuel:3360,time:21,sl_fuel:3700,sl_cas:237,sl_time:25},
+      {dist:80, mach:0.70,alt:17000,cas:228,cdist:15,fuel:3020,time:17,sl_fuel:3250,sl_cas:236,sl_time:20},
+      {dist:60, mach:0.70,alt:14000,cas:228,cdist:12,fuel:2680,time:13,sl_fuel:2810,sl_cas:235,sl_time:15},
+      {dist:40, mach:0.70,alt:9000, cas:230,cdist:8, fuel:2320,time:9, sl_fuel:2370,sl_cas:234,sl_time:10},
+      {dist:20, mach:0.70,alt:3000, cas:232,cdist:3, fuel:1930,time:5, sl_fuel:1930,sl_cas:233,sl_time:5},
+    ]},
+];
+
+// ─────────────────────────────────────────────
+// BUILD STORES GRID
+// ─────────────────────────────────────────────
+const quantities = {};
+STORES.forEach(s => quantities[s.id] = 0);
+const selected = new Set();
+
+// ─────────────────────────────────────────────
+// BUILD STORES GRID
+// ─────────────────────────────────────────────
+function buildStores() {
+  const cats = {
+    MSL:   'MISILES',
+    FUEL:  'TANQUES',
+    'A/G': 'ARMAMENTO A/G',
+    BMB:   'BOMBAS',
+    POD:   'PODS',
+    STRUCT:'RACKS/PYLONS',
+    RKT: "ROCKETS"
+  };
+  const grid = document.getElementById('stores_grid');
+  let lastCat = '';
+
+  STORES.forEach(s => {
+    // Category header
+    if (s.cat !== lastCat) {
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'grid-column:1/-1;font-size:13px;letter-spacing:3px;color:var(--text-dim);padding:8px 0 2px;border-top:1px solid var(--border);margin-top:4px;';
+      hdr.textContent = '— ' + (cats[s.cat] || s.cat);
+      grid.appendChild(hdr);
+      lastCat = s.cat;
+    }
+
+    // Store item
+    const el = document.createElement('div');
+    el.className = 'store-item';
+    el.id = 'si_' + s.id;
+
+    const qtyHtml = s.qty
+      ? `<div class="qty-ctrl" id="qc_${s.id}">
+           <button class="qty-btn" id="qminus_${s.id}" title="Quitar uno">−</button>
+           <span class="qty-value" id="qv_${s.id}">0</span>
+           <button class="qty-btn" id="qplus_${s.id}" title="Agregar uno">+</button>
+         </div>`
+      : '';
+
+    el.innerHTML = `
+      <div class="store-check" id="ck_${s.id}"></div>
+      <span class="store-name">${s.name}</span>
+      <span class="store-di" id="di_${s.id}">DI ${s.di}</span>
+      ${qtyHtml}`;
+
+    // Clicking the item area (excluding the qty buttons) toggles +1 / 0
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('qty-btn')) return;
+      if (quantities[s.id] === 0) {
+        setQty(s.id, 1);
+      } else {
+        setQty(s.id, 0);
+      }
+    });
+
+    // Minus / Plus buttons — only if qty:true
+    if (s.qty) {
+      el.querySelector(`#qminus_${s.id}`).addEventListener('click', (e) => {
+        e.stopPropagation();
+        setQty(s.id, Math.max(0, quantities[s.id] - 1));
+      });
+      el.querySelector(`#qplus_${s.id}`).addEventListener('click', (e) => {
+        e.stopPropagation();
+        setQty(s.id, quantities[s.id] + 1);
+      });
+    }
+
+    grid.appendChild(el);
+  });
+}
+
+// ─────────────────────────────────────────────
+// SET QUANTITY & REFRESH
+// ─────────────────────────────────────────────
+function setQty(id, qty) {
+  quantities[id] = qty;
+  const el  = document.getElementById('si_' + id);
+  const ck  = document.getElementById('ck_'  + id);
+  const qv  = document.getElementById('qv_'  + id);
+  const diS = document.getElementById('di_'  + id);
+  const s   = STORES.find(x => x.id === id);
+
+  if (qv) qv.textContent = qty;
+
+  if (qty > 0) {
+    el.classList.add('active');
+    ck.textContent = '✓';
+    diS.textContent = s.qty ? `DI ${(s.di * qty).toFixed(1)}` : `DI ${s.di}`;
+  } else {
+    el.classList.remove('active');
+    ck.textContent = '';
+    diS.textContent = `DI ${s.di}`;
+  }
+
+  updateDI();
+}
+
+// ─────────────────────────────────────────────
+// UPDATE TOTAL DI
+// ─────────────────────────────────────────────
+function updateDI() {
+  let total = 0;
+  STORES.forEach(s => {
+    total += s.di * (quantities[s.id] || 0);
+  });
+  document.getElementById('di_total').textContent = total.toFixed(1);
+}
+
+// ─────────────────────────────────────────────
+// TOGGLES
+// ─────────────────────────────────────────────
+function selToggle(field, val, el) {
+  document.getElementById(field).value = val;
+  el.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function syncSlider(field) {
+  const r = document.getElementById(field + '_range');
+  const v = document.getElementById(field + '_val');
+  v.textContent = r.value;
+  const pct = (r.value - r.min) / (r.max - r.min) * 100;
+  r.style.setProperty('--pct', pct + '%');
+}
+
+// ─────────────────────────────────────────────
+// INTERPOLATION HELPERS
+// ─────────────────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function interpolateByDist(rows, dist) {
+  if (dist <= rows[rows.length-1].dist) return rows[rows.length-1];
+  if (dist >= rows[0].dist) return rows[0];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const hi = rows[i], lo = rows[i+1];
+    if (dist <= hi.dist && dist >= lo.dist) {
+      const t = (dist - lo.dist) / (hi.dist - lo.dist);
+      const interp = {};
+      for (const k in hi) interp[k] = typeof hi[k] === 'number' ? lerp(lo[k], hi[k], t) : hi[k];
+      return interp;
+    }
+  }
+  return rows[0];
+}
+
+function snapDI(di) {
+  const levels = [0,50,100,150,200,250,300];
+  return levels.reduce((prev, curr) => Math.abs(curr - di) < Math.abs(prev - di) ? curr : prev);
+}
+
+function interpolateDI(tables, dist, di) {
+  const levels = [0,50,100,150,200,250,300];
+  const avail = [...new Set(tables.map(t => t.di))].sort((a,b) => a-b);
+
+  if (avail.length === 0) return null;
+  if (avail.length === 1) {
+    const r = interpolateByDist(tables[0].rows, dist);
+    return r;
+  }
+
+  // find surrounding DI tables
+  let loT = avail[0], hiT = avail[avail.length-1];
+  for (let i = 0; i < avail.length - 1; i++) {
+    if (di >= avail[i] && di <= avail[i+1]) { loT = avail[i]; hiT = avail[i+1]; break; }
+  }
+  if (di <= avail[0]) { loT = hiT = avail[0]; }
+  if (di >= avail[avail.length-1]) { loT = hiT = avail[avail.length-1]; }
+
+  const tLo = tables.find(t => t.di === loT);
+  const tHi = tables.find(t => t.di === hiT);
+  if (!tLo || !tHi) return null;
+
+  const rLo = interpolateByDist(tLo.rows, dist);
+  const rHi = interpolateByDist(tHi.rows, dist);
+
+  if (loT === hiT) return rLo;
+
+  const t = (di - loT) / (hiT - loT);
+  const interp = {};
+  for (const k in rLo) interp[k] = typeof rLo[k] === 'number' ? lerp(rLo[k], rHi[k], t) : rLo[k];
+  return interp;
+}
+
+// ─────────────────────────────────────────────
+// MAIN CALCULATE
+// Correct column mapping from NFM tables:
+//   dist    = inbound distance to base (NM)
+//   mach    = Mach number for climb/cruise at altitude
+//   alt     = cruise altitude (ft) — high altitude profile
+//   cas     = CAS at cruise altitude (KCAS)
+//   cdist   = descent distance from cruise alt at 250 KCAS idle (NM)
+//   fuel    = BINGO fuel for HIGH ALTITUDE profile (incl. 1500lb reserve)
+//   time    = (not used)
+//   sl_fuel = BINGO fuel for SEA LEVEL direct profile (incl. 1500lb reserve)
+//   sl_cas  = cruise CAS for sea level profile (KCAS)
+//   sl_time = time for sea level profile (min)
+// ─────────────────────────────────────────────
+function calculate() {
+  const dist  = parseInt(document.getElementById('dist_range').value);
+  const zfw   = parseInt(document.getElementById('zfw').value);
+  const gear  = document.getElementById('gear').value;
+  const flaps = document.getElementById('flaps').value;
+  const eng   = document.getElementById('eng').value;
+
+  // compute DI
+  let di = STORES.reduce((total, store) => {
+  const qty = quantities[store.id] ?? 0;
+  return total + (store.di * qty);
+}, 0);
+
+  di = Math.round(di * 10) / 10;
+  console.log('Total DI:', di);
+  console.log(quantities)
+
+  // filter matching tables
+  let matchTables = TABLES.filter(t =>
+    t.zfw === zfw && t.gear === gear && t.flaps === flaps && t.eng === eng
+  );
+
+  const notes = [];
+
+  if (matchTables.length === 0) {
+    matchTables = TABLES.filter(t => t.gear === gear && t.flaps === flaps && t.eng === eng);
+    if (matchTables.length === 0) {
+      alert('No hay datos disponibles para esta combinación. Prueba Gear UP + Flaps AUTO.');
+      return;
+    }
+    notes.push('ZFW exacto no disponible en NFM — interpolando con datos disponibles');
+  }
+
+  if (gear === 'down' && zfw === 30000) {
+    matchTables = TABLES.filter(t => t.zfw === 26000 && t.gear === 'down' && t.flaps === flaps && t.eng === eng);
+    notes.push('NFM no incluye tabla Gear Down para 30,000 lb — usando datos de 26,000 lb (conservador)');
+  }
+  if (flaps === 'half' && zfw === 30000) {
+    matchTables = TABLES.filter(t => t.gear === 'up' && t.flaps === 'half' && t.eng === eng);
+    notes.push('Datos Half Flaps 30,000 lb limitados — extrapolando con datos de 26,000 lb');
+  }
+
+  const result = interpolateDI(matchTables, dist, di);
+  if (!result) {
+    alert('No se pudo calcular. Verifica los parámetros.');
+    return;
+  }
+
+  // ── HIGH ALTITUDE profile ──
+  // fuel  = BINGO a gran altitud
+  // mach  = Mach de subida/crucero a gran altitud
+  // alt   = altitud de crucero (ft)
+  // cas   = velocidad de subida en MIL PWR (KCAS) hasta que se limita por Mach
+  // cdist = distancia de descenso desde esa altitud a 250 KCAS idle (NM)
+  const bingoHA  = Math.ceil(result.fuel / 50) * 50;
+  const cruiseAlt = Math.round(result.alt / 1000) * 1000;
+  const climbCAS  = Math.round(result.cas);
+  const descentNM = Math.round(result.cdist);
+
+  // ── SEA LEVEL profile ──
+  // sl_fuel = BINGO a nivel del mar
+  // sl_cas  = velocidad crucero SL (KCAS)
+  // sl_time = tiempo estimado (min)
+  const bingoSL   = Math.ceil(result.sl_fuel / 50) * 50;
+  const slCAS     = Math.round(result.sl_cas);
+  const slTime    = Math.round(result.sl_time);
+
+  // Operational margin (holding + go-around on top of the larger of the two)
+  const bingoOps = Math.max(bingoHA, bingoSL) + 800;
+
+  // ── Update DOM ──
+  document.getElementById('r_bingo_ha').textContent   = bingoHA.toLocaleString();
+  document.getElementById('r_bingo_sl').textContent   = bingoSL.toLocaleString();
+  document.getElementById('r_alt').textContent        = cruiseAlt.toLocaleString();
+  document.getElementById('r_mach').textContent       = result.mach.toFixed(2);
+  document.getElementById('r_climb_speed').textContent = climbCAS;
+  document.getElementById('r_descent_nm').textContent  = descentNM;
+  document.getElementById('r_sl_cas').textContent      = slCAS;
+  document.getElementById('r_sl_time').textContent     = slTime;
+
+  // Config tags
+  document.getElementById('r_config_tags').innerHTML = `
+    <span class="config-tag highlight">${dist} NM</span>
+    <span class="config-tag highlight">${zfw.toLocaleString()} LB ZFW</span>
+    <span class="config-tag highlight">DI ${di.toFixed(0)}</span>
+    <span class="config-tag">${gear.toUpperCase()} GEAR</span>
+    <span class="config-tag">${flaps === 'auto' ? 'FLAPS AUTO' : 'HALF FLAPS'}</span>
+    <span class="config-tag">${eng === 'two' ? '2 ENG' : '1 ENG EMER'}</span>
+  `;
+
+  // Notes
+  notes.push(`Gran altitud: subida MIL a ${climbCAS} KCAS → M${result.mach.toFixed(2)} hasta ${cruiseAlt.toLocaleString()} ft`);
+  notes.push(`Descenso desde ${cruiseAlt.toLocaleString()} ft: idle + 250 KCAS speedbrake retraído — cubre ${descentNM} NM incluidos en el BINGO`);
+  notes.push(`Nivel del mar: crucero directo a ${slCAS} KCAS sin subida ni descenso — tiempo est. ${slTime} min`);
+  if (bingoSL > bingoHA) notes.push('El perfil SL requiere más combustible que el de gran altitud en esta configuración');
+  notes.push('Datos base: día estándar EE.UU. 1962 · sin viento · JP-5 6.8 lb/gal');
+  if (eng === 'one') notes.push('⚠ EMERGENCIA 1 motor: motor inoperativo en windmill — validar procedimiento con checklist NATOPS');
+
+  document.getElementById('r_notes').innerHTML = notes.map(n => `<li>${n}</li>`).join('');
+
+  document.getElementById('r_warning_total').textContent =
+    `BINGO OPERACIONAL RECOMENDADO (+HOLDING +GO-AROUND): ${bingoOps.toLocaleString()} LB`;
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+buildStores();
+syncSlider('dist');
+</script>
+</body>
+</html>
