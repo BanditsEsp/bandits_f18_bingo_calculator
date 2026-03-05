@@ -501,7 +501,7 @@
             <div class="result-unit">LB · JP-5</div>
             <div class="result-sub">
               Alt crucero: <span class="sv" id="r_alt">---</span> ft &nbsp;·&nbsp;
-              M<span class="sv" id="r_mach">---</span><br>
+              Ascenso a M<span class="sv" id="r_mach">---</span><br>
               Vel Crucero: <span class="sv" id="r_climb_speed">---</span> KCAS &nbsp;·&nbsp;
               Descenso idle: <span class="sv" id="r_descent_nm">---</span> NM
               <br>
@@ -534,11 +534,15 @@
           <div>
             <div class="warning-title">◈ NO HAY RESERVA DE COMBUSTIBLE — AVISO CRÍTICO</div>
             <div class="warning-text">
+              Para configuraciones no exactas, el cálculo se basa en interpolación lineal. La precisión es menor a la habitual (±300 lb / ±30 NM en misiones >200 NM).
+            </div>
+            <br>
+            <div class="warning-text">
               Para operaciones reales añade margen adicional por:
             </div>
             <div class="warning-text" style="margin-top:8px;">
               ▸ <strong>Esperas ATC</strong> (holding): +fuel según tiempo estimado<br>
-              ▸ <strong>Intentos de aterrizaje frustrados</strong> (go-around): mín. +500lb para portaaviones y 800lb para pista por intento<br>
+              ▸ <strong>Intentos de aterrizaje frustrados</strong> (go-around): mín. +500lb para portaaviones y +800lb para pista por intento<br>
               ▸ <strong>Emergencias / desvio a alternativo</strong>: planifica combustible propio para alternativo<br>
               ▸ <strong>Viento en cabeza</strong>: Tener en cuenta el viento<br>
               ▸ <strong>Día no estándar</strong>: temperatura alta reduce rendimiento del F404-GE-400
@@ -1198,7 +1202,7 @@ function calculate() {
   const slTime    = Math.round(result.sl_time);
 
   // Operational margin (holding + go-around on top of the larger of the two)
-  const bingoOps = Math.max(bingoHA, bingoSL) + 800;
+  const bingoOps = Math.max(bingoHA, bingoSL) + 1500;
 
   // ── Update DOM ──
   document.getElementById('r_bingo_ha').textContent   = bingoHA.toLocaleString();
